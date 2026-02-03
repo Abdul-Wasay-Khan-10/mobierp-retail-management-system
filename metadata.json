@@ -1,0 +1,8 @@
+
+{
+  "name": "MobiERP - Retail Management System",
+  "description": "A high-performance ERP system designed for mobile phone retail shops, featuring inventory tracking, automated sales processing, multi-user management, and real-time business analytics.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
