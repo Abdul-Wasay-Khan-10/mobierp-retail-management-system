@@ -370,6 +370,72 @@ export const logout = (): void => {
   setCurrentUser(null);
 };
 
+export const getUsers = async (): Promise<User[]> => {
+  const { data, error } = await supabase
+    .from('users')
+    .select('*')
+    .order('created_at', { ascending: false });
+  
+  if (error) throw error;
+  
+  return data.map(user => ({
+    id: user.id,
+    username: user.username,
+    name: user.name,
+    role: user.role as UserRole
+  }));
+};
+
+export const addUser = async (user: {
+  username: string;
+  password: string;
+  name: string;
+  role: UserRole;
+}): Promise<User> => {
+  // Check if username already exists
+  const { data: existing } = await supabase
+    .from('users')
+    .select('id')
+    .eq('username', user.username)
+    .single();
+  
+  if (existing) {
+    throw new Error('Username already exists');
+  }
+  
+  // Insert new user (using plain text password for development)
+  // In production, use proper bcrypt hashing
+  const { data, error } = await supabase
+    .from('users')
+    .insert({
+      username: user.username,
+      password_hash: user.password,
+      name: user.name,
+      role: user.role,
+      is_active: true
+    })
+    .select()
+    .single();
+  
+  if (error) throw error;
+  
+  return {
+    id: data.id,
+    username: data.username,
+    name: data.name,
+    role: data.role as UserRole
+  };
+};
+
+export const deleteUser = async (id: string): Promise<void> => {
+  const { error } = await supabase
+    .from('users')
+    .delete()
+    .eq('id', id);
+  
+  if (error) throw error;
+};
+
 // Export all functions as db object for compatibility
 export const db = {
   // Categories
@@ -386,9 +452,12 @@ export const db = {
   getSales,
   recordSale,
   
-  // Auth
+  // Auth & Users
   login,
   getCurrentUser,
   setCurrentUser,
-  logout
+  logout,
+  getUsers,
+  addUser,
+  deleteUser
 };

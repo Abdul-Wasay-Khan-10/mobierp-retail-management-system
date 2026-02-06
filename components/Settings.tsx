@@ -12,6 +12,7 @@ const Settings: React.FC<SettingsProps> = ({ onLogout, currentUser }) => {
   const [users, setUsers] = useState<any[]>([]);
   const [showAddUser, setShowAddUser] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [showPassword, setShowPassword] = useState(false);
   const [newUser, setNewUser] = useState({
     username: '',
     password: '',
@@ -25,10 +26,11 @@ const Settings: React.FC<SettingsProps> = ({ onLogout, currentUser }) => {
 
   const loadUsers = async () => {
     try {
-      // For now, show current user only since user management needs backend implementation
-      setUsers([currentUser]);
+      const usersData = await db.getUsers();
+      setUsers(usersData);
     } catch (error) {
       console.error('Error loading users:', error);
+      alert('Failed to load users: ' + (error as Error).message);
     } finally {
       setLoading(false);
     }
@@ -36,8 +38,21 @@ const Settings: React.FC<SettingsProps> = ({ onLogout, currentUser }) => {
 
   const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    alert('User management requires backend implementation. Coming soon!');
-    setShowAddUser(false);
+    try {
+      await db.addUser(newUser);
+      await loadUsers();
+      setShowAddUser(false);
+      setNewUser({
+        username: '',
+        password: '',
+        name: '',
+        role: UserRole.STAFF
+      });
+      alert('User added successfully!');
+    } catch (error) {
+      console.error('Error adding user:', error);
+      alert('Failed to add user: ' + (error as Error).message);
+    }
   };
 
   const handleDeleteUser = async (id: string) => {
@@ -45,7 +60,17 @@ const Settings: React.FC<SettingsProps> = ({ onLogout, currentUser }) => {
       alert("You cannot delete your own account.");
       return;
     }
-    alert('User management requires backend implementation. Coming soon!');
+    if (!confirm('Are you sure you want to delete this user?')) {
+      return;
+    }
+    try {
+      await db.deleteUser(id);
+      await loadUsers();
+      alert('User deleted successfully!');
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      alert('Failed to delete user: ' + (error as Error).message);
+    }
   };
 
   return (
@@ -164,7 +189,24 @@ const Settings: React.FC<SettingsProps> = ({ onLogout, currentUser }) => {
                 </div>
                 <div>
                   <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-widest">Secret Key</label>
-                  <input required type="password" outline-none className="w-full px-4 py-3.5 bg-slate-50 border-none rounded-2xl outline-none ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-500 transition-all font-mono" placeholder="••••••••" value={newUser.password} onChange={e => setNewUser({...newUser, password: e.target.value})} />
+                  <div className="relative">
+                    <input 
+                      required 
+                      type={showPassword ? "text" : "password"} 
+                      className="w-full px-4 py-3.5 pr-12 bg-slate-50 border-none rounded-2xl outline-none ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-500 transition-all font-mono" 
+                      placeholder="••••••••" 
+                      value={newUser.password} 
+                      onChange={e => setNewUser({...newUser, password: e.target.value})} 
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors rounded-lg hover:bg-slate-100"
+                      tabIndex={-1}
+                    >
+                      <i className={`fas ${showPassword ? 'fa-eye-slash' : 'fa-eye'} text-sm`}></i>
+                    </button>
+                  </div>
                 </div>
                 <div>
                   <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-widest">Access Protocol</label>

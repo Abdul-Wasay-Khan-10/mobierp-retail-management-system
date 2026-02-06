@@ -16,6 +16,7 @@ const App: React.FC = () => {
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
+  const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
     setUser(db.getCurrentUser());
@@ -76,14 +77,24 @@ const App: React.FC = () => {
             </div>
             <div>
               <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 tracking-widest ml-1">Security Key</label>
-              <input 
-                required
-                type="password" 
-                className="w-full px-4 py-3.5 bg-slate-50 border-none rounded-2xl ring-1 ring-slate-100 focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-mono"
-                placeholder="••••••••"
-                value={loginForm.password}
-                onChange={e => setLoginForm({...loginForm, password: e.target.value})}
-              />
+              <div className="relative">
+                <input 
+                  required
+                  type={showPassword ? "text" : "password"} 
+                  className="w-full px-4 py-3.5 pr-12 bg-slate-50 border-none rounded-2xl ring-1 ring-slate-100 focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-mono"
+                  placeholder="••••••••"
+                  value={loginForm.password}
+                  onChange={e => setLoginForm({...loginForm, password: e.target.value})}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors rounded-lg hover:bg-slate-100"
+                  tabIndex={-1}
+                >
+                  <i className={`fas ${showPassword ? 'fa-eye-slash' : 'fa-eye'} text-sm`}></i>
+                </button>
+              </div>
             </div>
             <button 
               type="submit" 
@@ -94,9 +105,6 @@ const App: React.FC = () => {
                 <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
               ) : 'Access Terminal'}
             </button>
-            <div className="text-center">
-              <p className="text-[10px] text-slate-300 uppercase tracking-widest font-black">Default: hamza / hamza123</p>
-            </div>
           </form>
         </div>
       </div>

@@ -86,9 +86,11 @@ const SalesHistory: React.FC = () => {
                     <div className="flex justify-between items-start mb-2">
                       <div>
                         <div className="text-[10px] font-black text-indigo-500 uppercase tracking-widest mb-1">{sale.saleNumber}</div>
-                        <div className="flex items-center text-[10px] font-bold text-slate-400 space-x-1">
+                        <div className="flex items-center text-[10px] font-bold text-slate-400 space-x-2">
                           <i className="fa-regular fa-clock"></i>
                           <span>{new Date(sale.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                          <span>•</span>
+                          <span className="text-indigo-600">{sale.seller}</span>
                         </div>
                       </div>
                       <div className="text-lg font-black text-slate-900">Rs {sale.total}</div>
@@ -112,6 +114,7 @@ const SalesHistory: React.FC = () => {
                     <tr className="bg-slate-50 border-b border-slate-200">
                       <th className="px-6 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Time</th>
                       <th className="px-6 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Order ID</th>
+                      <th className="px-6 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Seller</th>
                       <th className="px-6 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Contents</th>
                       <th className="px-6 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Total</th>
                     </tr>
@@ -125,6 +128,14 @@ const SalesHistory: React.FC = () => {
                           </div>
                         </td>
                         <td className="px-6 py-4 font-mono text-[10px] text-slate-400 font-bold">{sale.saleNumber}</td>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center space-x-2">
+                            <div className="w-7 h-7 rounded-full bg-indigo-50 flex items-center justify-center text-[10px] font-black text-indigo-600 uppercase">
+                              {sale.seller.charAt(0)}
+                            </div>
+                            <span className="text-xs font-bold text-slate-700">{sale.seller}</span>
+                          </div>
+                        </td>
                         <td className="px-6 py-4">
                           <div className="flex flex-col gap-1 max-w-xs">
                             {sale.items.map((item, idx) => (
