@@ -4,6 +4,12 @@ export enum UserRole {
   STAFF = 'STAFF'
 }
 
+export enum InventoryMethod {
+  FIFO = 'FIFO',
+  LIFO = 'LIFO',
+  AVERAGE = 'AVERAGE'
+}
+
 export interface User {
   id: string;
   username: string;
@@ -46,7 +52,7 @@ export interface Sale {
   saleNumber: string;
   date: string;
   total: number;
-  seller: string;
+  seller: string | null;
   items: SaleItem[];
 }
 

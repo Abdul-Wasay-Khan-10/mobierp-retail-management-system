@@ -13,6 +13,8 @@ const Settings: React.FC<SettingsProps> = ({ onLogout, currentUser }) => {
   const [showAddUser, setShowAddUser] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
+  const [displayOrder, setDisplayOrder] = useState<'FIFO' | 'LIFO'>('LIFO');
+  const [savingOrder, setSavingOrder] = useState(false);
   const [newUser, setNewUser] = useState({
     username: '',
     password: '',
@@ -21,8 +23,24 @@ const Settings: React.FC<SettingsProps> = ({ onLogout, currentUser }) => {
   });
 
   useEffect(() => {
-    loadUsers();
+    loadData();
   }, []);
+
+  const loadData = async () => {
+    try {
+      const [usersData, order] = await Promise.all([
+        db.getUsers(),
+        db.getInventoryDisplayOrder()
+      ]);
+      setUsers(usersData);
+      setDisplayOrder(order);
+    } catch (error) {
+      console.error('Error loading data:', error);
+      alert('Failed to load settings: ' + (error as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const loadUsers = async () => {
     try {
@@ -31,8 +49,6 @@ const Settings: React.FC<SettingsProps> = ({ onLogout, currentUser }) => {
     } catch (error) {
       console.error('Error loading users:', error);
       alert('Failed to load users: ' + (error as Error).message);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -73,16 +89,99 @@ const Settings: React.FC<SettingsProps> = ({ onLogout, currentUser }) => {
     }
   };
 
+  const handleDisplayOrderChange = async (order: 'FIFO' | 'LIFO') => {
+    try {
+      setSavingOrder(true);
+      await db.setInventoryDisplayOrder(order);
+      setDisplayOrder(order);
+      alert(`Inventory display order updated to ${order}! Products will now be sorted ${order === 'FIFO' ? 'oldest first' : 'newest first'}.`);
+    } catch (error) {
+      console.error('Error updating display order:', error);
+      alert('Failed to update display order: ' + (error as Error).message);
+    } finally {
+      setSavingOrder(false);
+    }
+  };
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       <header>
-        <h2 className="text-xl md:text-2xl font-bold text-slate-900">Account & Staff</h2>
-        <p className="text-slate-500 text-sm">Manage system access and employee permissions.</p>
+        <h2 className="text-xl md:text-2xl font-bold text-slate-900">System Settings</h2>
+        <p className="text-slate-500 text-sm">Configure inventory costing, staff access, and system preferences.</p>
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
-        {/* User Management */}
+        {/* Left Column - Settings & User Management */}
         <div className="lg:col-span-2 space-y-6">
+          {/* Inventory Display Order */}
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+            <div className="p-5 border-b border-slate-100">
+              <h3 className="font-bold text-slate-900 flex items-center text-sm md:text-base">
+                <i className="fas fa-sort mr-2 text-indigo-600"></i>
+                Inventory Display Order
+              </h3>
+              <p className="text-xs text-slate-500 mt-1">Choose how products are sorted in the inventory listing</p>
+            </div>
+            <div className="p-6">
+              <div className="space-y-3">
+                {[
+                  { 
+                    value: 'FIFO' as const, 
+                    label: 'FIFO (First In, First Out)', 
+                    description: 'Show oldest products first. Products added earlier appear at the top.',
+                    icon: 'fa-arrow-down-1-9'
+                  },
+                  { 
+                    value: 'LIFO' as const, 
+                    label: 'LIFO (Last In, First Out)', 
+                    description: 'Show newest products first. Recently added products appear at the top.',
+                    icon: 'fa-arrow-down-9-1'
+                  }
+                ].map((option) => (
+                  <button
+                    key={option.value}
+                    onClick={() => handleDisplayOrderChange(option.value)}
+                    disabled={savingOrder}
+                    className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
+                      displayOrder === option.value
+                        ? 'border-indigo-500 bg-indigo-50'
+                        : 'border-slate-200 bg-white hover:border-indigo-300'
+                    } ${savingOrder ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                  >
+                    <div className="flex items-start space-x-3">
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                        displayOrder === option.value ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-400'
+                      }`}>
+                        <i className={`fas ${option.icon}`}></i>
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-2">
+                          <p className={`font-bold ${displayOrder === option.value ? 'text-indigo-900' : 'text-slate-900'}`}>
+                            {option.label}
+                          </p>
+                          {displayOrder === option.value && (
+                            <span className="text-xs bg-indigo-600 text-white px-2 py-0.5 rounded-full font-bold">ACTIVE</span>
+                          )}
+                        </div>
+                        <p className="text-xs text-slate-500 mt-1">{option.description}</p>
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+              <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex items-start space-x-2">
+                  <i className="fas fa-circle-info text-blue-600 mt-0.5"></i>
+                  <p className="text-xs text-blue-800">
+                    <strong>Sorting Only:</strong> This setting only affects the order in which products appear in the Inventory page. 
+                    It does not affect sales, reports, or product values.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* User Management */}
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
             <div className="p-5 border-b border-slate-100 flex justify-between items-center">
               <h3 className="font-bold text-slate-900 flex items-center text-sm md:text-base">

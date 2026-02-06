@@ -90,7 +90,9 @@ const SalesHistory: React.FC = () => {
                           <i className="fa-regular fa-clock"></i>
                           <span>{new Date(sale.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                           <span>•</span>
-                          <span className="text-indigo-600">{sale.seller}</span>
+                          <span className={sale.seller ? "text-indigo-600" : "text-slate-400 italic"}>
+                            {sale.seller || 'Deleted User'}
+                          </span>
                         </div>
                       </div>
                       <div className="text-lg font-black text-slate-900">Rs {sale.total}</div>
@@ -130,10 +132,14 @@ const SalesHistory: React.FC = () => {
                         <td className="px-6 py-4 font-mono text-[10px] text-slate-400 font-bold">{sale.saleNumber}</td>
                         <td className="px-6 py-4">
                           <div className="flex items-center space-x-2">
-                            <div className="w-7 h-7 rounded-full bg-indigo-50 flex items-center justify-center text-[10px] font-black text-indigo-600 uppercase">
-                              {sale.seller.charAt(0)}
+                            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black uppercase ${
+                              sale.seller ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-100 text-slate-400'
+                            }`}>
+                              {sale.seller ? sale.seller.charAt(0) : '?'}
                             </div>
-                            <span className="text-xs font-bold text-slate-700">{sale.seller}</span>
+                            <span className={`text-xs font-bold ${sale.seller ? 'text-slate-700' : 'text-slate-400 italic'}`}>
+                              {sale.seller || 'Deleted User'}
+                            </span>
                           </div>
                         </td>
                         <td className="px-6 py-4">

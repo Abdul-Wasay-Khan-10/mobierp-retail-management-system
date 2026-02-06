@@ -36,9 +36,12 @@ const POS: React.FC = () => {
     }
   };
 
-  const filtered = products.filter(p => 
-    p.model.toLowerCase().includes(searchTerm.toLowerCase()) && p.stock > 0
-  );
+  const filtered = products.filter(p => {
+    const matchesSearch = p.model.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                          p.brand.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          p.sku.toLowerCase().includes(searchTerm.toLowerCase());
+    return matchesSearch && p.stock > 0;
+  });
 
   const openPriceModal = (product: Product) => {
     setSelectedProduct(product);
@@ -177,7 +180,7 @@ const POS: React.FC = () => {
             <i className="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
             <input 
               type="text" 
-              placeholder="Search products..."
+              placeholder="Search by brand, model, or SKU..."
               className="w-full pl-11 pr-4 py-3.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none shadow-sm"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}

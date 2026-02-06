@@ -19,7 +19,19 @@ const App: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
-    setUser(db.getCurrentUser());
+    const checkUser = async () => {
+      const currentUser = db.getCurrentUser();
+      if (currentUser) {
+        // Verify user still exists in database
+        const isValid = await db.verifyCurrentUser();
+        if (isValid) {
+          setUser(currentUser);
+        } else {
+          setLoginError('Session expired. Please log in again.');
+        }
+      }
+    };
+    checkUser();
   }, []);
 
   const handleLogin = async (e: React.FormEvent) => {

@@ -20,11 +20,14 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         const sales = await db.getSales();
 
         const now = new Date();
-        const todayStr = now.toISOString().split('T')[0];
+        const todayStr = now.toLocaleDateString('en-CA'); // YYYY-MM-DD in local timezone
         const lastWeek = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
         const daily = sales
-          .filter(s => s.date.startsWith(todayStr))
+          .filter(s => {
+            const saleLocalDate = new Date(s.date).toLocaleDateString('en-CA');
+            return saleLocalDate === todayStr;
+          })
           .reduce((acc, s) => acc + s.total, 0);
 
         const weekly = sales
@@ -59,9 +62,12 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         const last7Days = Array.from({ length: 7 }, (_, i) => {
           const d = new Date();
           d.setDate(d.getDate() - (6 - i));
-          const dateStr = d.toISOString().split('T')[0];
+          const dateStr = d.toLocaleDateString('en-CA'); // YYYY-MM-DD in local timezone
           const dayTotal = sales
-            .filter(s => s.date.startsWith(dateStr))
+            .filter(s => {
+              const saleLocalDate = new Date(s.date).toLocaleDateString('en-CA');
+              return saleLocalDate === dateStr;
+            })
             .reduce((acc, s) => acc + s.total, 0);
           return {
             name: d.toLocaleDateString('en-US', { weekday: 'short' }),

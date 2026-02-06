@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { Product, Sale, SaleItem, Category, User, UserRole } from '../types';
+import { Product, Sale, SaleItem, Category, User, UserRole, InventoryMethod } from '../types';
 
 // =====================================================
 // CATEGORIES
@@ -39,6 +39,10 @@ export const addCategory = async (name: string): Promise<Category> => {
 // =====================================================
 
 export const getProducts = async (): Promise<Product[]> => {
+  // Get display order setting (FIFO or LIFO)
+  const displayOrder = await getInventoryDisplayOrder();
+  const ascending = displayOrder === 'FIFO'; // FIFO = oldest first (ascending)
+  
   const { data, error } = await supabase
     .from('products')
     .select(`
@@ -48,7 +52,8 @@ export const getProducts = async (): Promise<Product[]> => {
         name
       )
     `)
-    .order('created_at', { ascending: false });
+    .eq('is_active', true)
+    .order('created_at', { ascending });
   
   if (error) throw error;
   
@@ -149,9 +154,11 @@ export const updateProductStock = async (id: string, additionalStock: number): P
 };
 
 export const deleteProduct = async (id: string): Promise<void> => {
+  // Soft delete - set is_active to false instead of deleting
+  // This preserves sales history and referential integrity
   const { error } = await supabase
     .from('products')
-    .delete()
+    .update({ is_active: false, updated_at: new Date().toISOString() })
     .eq('id', id);
   
   if (error) throw error;
@@ -197,7 +204,7 @@ export const getSales = async (): Promise<Sale[]> => {
     saleNumber: sale.sale_number,
     date: sale.created_at,
     total: parseFloat(sale.total_amount),
-    seller: sale.seller.name,
+    seller: sale.seller?.name || null,
     items: sale.sale_items.map((item: any) => ({
       id: item.id,
       productId: item.product.id,
@@ -221,6 +228,18 @@ export const recordSale = async (sale: {
   }>;
   sellerId: string;
 }): Promise<Sale> => {
+  // Validate seller exists
+  const { data: seller, error: sellerError } = await supabase
+    .from('users')
+    .select('id, name')
+    .eq('id', sale.sellerId)
+    .eq('is_active', true)
+    .single();
+  
+  if (sellerError || !seller) {
+    throw new Error('Invalid seller ID. Please log out and log back in.');
+  }
+  
   const total = sale.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   
   // Generate sale number: SALE-DDMMYYYY-XXXX
@@ -310,7 +329,7 @@ export const recordSale = async (sale: {
     saleNumber: completeSale!.sale_number,
     date: completeSale!.created_at,
     total: parseFloat(completeSale!.total_amount),
-    seller: completeSale!.seller.name,
+    seller: completeSale!.seller?.name || null,
     items: completeSale!.sale_items.map((item: any) => ({
       id: item.id,
       productId: item.product.id,
@@ -356,6 +375,27 @@ export const login = async (username: string, password: string): Promise<User | 
 export const getCurrentUser = (): User | null => {
   const userData = localStorage.getItem('erp_current_user');
   return userData ? JSON.parse(userData) : null;
+};
+
+// Verify current user still exists in database
+export const verifyCurrentUser = async (): Promise<boolean> => {
+  const currentUser = getCurrentUser();
+  if (!currentUser) return false;
+  
+  const { data, error } = await supabase
+    .from('users')
+    .select('id')
+    .eq('id', currentUser.id)
+    .eq('is_active', true)
+    .single();
+  
+  if (error || !data) {
+    // User no longer exists, clear localStorage
+    logout();
+    return false;
+  }
+  
+  return true;
 };
 
 export const setCurrentUser = (user: User | null): void => {
@@ -436,6 +476,37 @@ export const deleteUser = async (id: string): Promise<void> => {
   if (error) throw error;
 };
 
+// =====================================================
+// INVENTORY DISPLAY ORDER SETTINGS
+// =====================================================
+
+export const getInventoryDisplayOrder = async (): Promise<'FIFO' | 'LIFO'> => {
+  const { data, error } = await supabase
+    .from('system_settings')
+    .select('setting_value')
+    .eq('setting_key', 'inventory_display_order')
+    .single();
+  
+  if (error) {
+    console.warn('Could not fetch inventory display order, defaulting to LIFO:', error);
+    return 'LIFO';
+  }
+  
+  return (data?.setting_value as 'FIFO' | 'LIFO') || 'LIFO';
+};
+
+export const setInventoryDisplayOrder = async (order: 'FIFO' | 'LIFO'): Promise<void> => {
+  const { error } = await supabase
+    .from('system_settings')
+    .update({ 
+      setting_value: order,
+      updated_at: new Date().toISOString()
+    })
+    .eq('setting_key', 'inventory_display_order');
+  
+  if (error) throw error;
+};
+
 // Export all functions as db object for compatibility
 export const db = {
   // Categories
@@ -455,9 +526,14 @@ export const db = {
   // Auth & Users
   login,
   getCurrentUser,
+  verifyCurrentUser,
   setCurrentUser,
   logout,
   getUsers,
   addUser,
-  deleteUser
+  deleteUser,
+  
+  // Settings
+  getInventoryDisplayOrder,
+  setInventoryDisplayOrder
 };

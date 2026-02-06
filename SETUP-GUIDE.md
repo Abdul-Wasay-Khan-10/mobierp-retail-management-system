@@ -40,26 +40,21 @@ VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 
 1. Go to your Supabase Dashboard
 2. Navigate to **SQL Editor**
-3. Copy and paste contents of `supabase-schema-with-rls.sql`
-4. Click **Run** to create all tables, functions, and triggers
+3. Copy and paste contents of `production-schema.sql`
+4. Click **Run** to create all tables, functions, triggers, and seed data
 
-### 4. Add Test Users
+**Note:** The setup includes test users automatically:
 
-In Supabase SQL Editor, run `add-test-users.sql`:
+- **Owner:** username `hamza`, password `hamza123`
+- **Staff:** username `staff`, password `staff123`
 
-```sql
--- This creates two test users:
--- Username: hamza, Password: hamza123 (Owner)
--- Username: staff, Password: staff123 (Staff)
-```
-
-### 5. Run Development Server
+### 4. Run Development Server
 
 ```bash
 npm run dev
 ```
 
-App will be available at `http://localhost:3000`
+App will be available at `http://localhost:5173`
 
 ## 📚 Database Schema
 
@@ -127,9 +122,10 @@ App will be available at `http://localhost:3000`
 │   └── Layout.tsx         # App layout
 ├── services/
 │   ├── supabase.ts        # Supabase client
-│   └── supabase-db.ts     # Database operations
-├── supabase-schema-with-rls.sql  # Complete DB schema
-├── add-test-users.sql     # Test user setup
+│   ├── supabase-db.ts     # Database operations
+│   └── supabase-config.ts # Supabase configuration
+├── production-schema.sql  # Complete production DB setup
+├── database-validation.sql # Optional validation queries
 └── types.ts               # TypeScript interfaces
 ```
 
@@ -141,8 +137,9 @@ App will be available at `http://localhost:3000`
 - Restart dev server after adding env vars
 
 ### "Login failed"
-- Run `add-test-users.sql` in Supabase SQL Editor
-- Verify users table has data: `SELECT * FROM users;`
+- Verify `production-schema.sql` was executed successfully
+- Check users table has data: `SELECT * FROM users;`
+- Use credentials: hamza/hamza123 or staff/staff123
 - Check username/password match exactly
 
 ### "Insufficient stock" error
@@ -163,7 +160,7 @@ App will be available at `http://localhost:3000`
 4. Categories appear in product dropdown
 
 ### Modify SKU Format
-Edit `generate_sku()` function in `supabase-schema-with-rls.sql`
+Edit `generate_sku()` function in `production-schema.sql`
 
 ### Change Currency
 Replace all `Rs` with your currency symbol throughout components
