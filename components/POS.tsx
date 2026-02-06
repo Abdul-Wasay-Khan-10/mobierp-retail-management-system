@@ -339,6 +339,7 @@ const POS: React.FC = () => {
                   step="1"
                   value={sellingPrice}
                   onChange={(e) => setSellingPrice(Number(e.target.value))}
+                  onFocus={(e) => e.target.select()}
                   className="w-full px-4 py-4 bg-slate-50 border-none rounded-2xl outline-none ring-2 ring-indigo-500 transition-all font-black text-2xl text-indigo-600 text-center"
                   autoFocus
                 />

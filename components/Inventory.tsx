@@ -20,8 +20,8 @@ const Inventory: React.FC = () => {
     brand: '',
     model: '',
     categoryId: '',
-    cost: 0,
-    stock: 0,
+    cost: '' as string | number,
+    stock: '' as string | number,
     sku: ''
   });
 
@@ -63,16 +63,16 @@ const Inventory: React.FC = () => {
         categoryId: newProduct.categoryId,
         brand: newProduct.brand,
         model: newProduct.model,
-        cost: newProduct.cost,
-        stock: newProduct.stock
+        cost: Number(newProduct.cost),
+        stock: Number(newProduct.stock)
       });
       setShowAddModal(false);
       setNewProduct({
         brand: '',
         model: '',
         categoryId: categories[0]?.id || '',
-        cost: 0,
-        stock: 0,
+        cost: '',
+        stock: '',
         sku: ''
       });
       await refreshData();
@@ -323,12 +323,12 @@ const Inventory: React.FC = () => {
                 </div>
                 <div className="col-span-2">
                   <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 tracking-widest ml-1">Cost Price (Rs)</label>
-                  <input required type="number" min="0" className="w-full px-4 py-3.5 bg-slate-50 border-none rounded-2xl outline-none ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-500 transition-all font-black text-amber-600" value={newProduct.cost} onChange={e => setNewProduct({...newProduct, cost: Number(e.target.value)})} />
+                  <input required type="number" min="0" className="w-full px-4 py-3.5 bg-slate-50 border-none rounded-2xl outline-none ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-500 transition-all font-black text-amber-600" value={newProduct.cost} onChange={e => setNewProduct({...newProduct, cost: e.target.value === '' ? '' : Number(e.target.value)})} onFocus={e => e.target.select()} />
                   <p className="text-xs text-slate-400 mt-2 ml-1">Selling price will be set at POS during sale</p>
                 </div>
                 <div className="col-span-2">
                   <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 tracking-widest ml-1">Initial Stock Count</label>
-                  <input required type="number" min="1" className="w-full px-4 py-3.5 bg-slate-50 border-none rounded-2xl outline-none ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-500 transition-all font-black" value={newProduct.stock} onChange={e => setNewProduct({...newProduct, stock: Number(e.target.value)})} />
+                  <input required type="number" min="1" className="w-full px-4 py-3.5 bg-slate-50 border-none rounded-2xl outline-none ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-500 transition-all font-black" value={newProduct.stock} onChange={e => setNewProduct({...newProduct, stock: e.target.value === '' ? '' : Number(e.target.value)})} onFocus={e => e.target.select()} />
                 </div>
               </div>
               <div className="pt-4 flex gap-3 pb-6 sm:pb-0">
@@ -398,9 +398,9 @@ const Inventory: React.FC = () => {
                   type="number" 
                   min="1"
                   className="w-full px-4 py-3.5 bg-slate-50 border-none rounded-2xl outline-none ring-1 ring-slate-200 focus:ring-2 focus:ring-emerald-500 transition-all font-black text-2xl text-center text-emerald-600" 
-                  placeholder="0" 
                   value={stockToAdd} 
                   onChange={e => setStockToAdd(Number(e.target.value))} 
+                  onFocus={e => e.target.select()} 
                 />
                 <p className="text-xs text-slate-400 mt-2 text-center">
                   New total: <span className="font-bold text-slate-700">{selectedProductForStock.stock + stockToAdd} units</span>

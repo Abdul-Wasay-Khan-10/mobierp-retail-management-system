@@ -103,10 +103,9 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
       </header>
 
       {/* Stat Grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
         <StatCard title={`Today (${currentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})`} value={`Rs ${stats.dailySales}`} icon="fa-dollar-sign" color="bg-emerald-500" />
         <StatCard title="Last 7 Days" value={`Rs ${stats.weeklySales}`} icon="fa-chart-line" color="bg-indigo-500" />
-        <StatCard title="Stock Value" value={`Rs ${stats.totalInventoryValue}`} icon="fa-box" color="bg-sky-500" />
         <StatCard title="Low Stock" value={stats.lowStockCount} icon="fa-triangle-exclamation" color="bg-amber-500" />
       </div>
 
