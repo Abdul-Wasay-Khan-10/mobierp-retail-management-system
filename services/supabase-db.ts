@@ -129,27 +129,63 @@ export const addProduct = async (product: {
 };
 
 export const updateProductStock = async (id: string, additionalStock: number): Promise<void> => {
+  console.log('Updating stock for product:', id, 'adding:', additionalStock);
+  
+  // Get current user for tracking
+  const { data: { user } } = await supabase.auth.getUser();
+  
   const { error } = await supabase.rpc('add_product_stock', {
     p_product_id: id,
-    p_additional_stock: additionalStock
+    p_additional_stock: additionalStock,
+    p_user_id: user?.id || null
   });
   
   if (error) {
-    // If RPC function doesn't exist, do it manually
-    const { data: product } = await supabase
+    console.warn('RPC function failed, trying manual update:', error.message);
+    
+    // Manual fallback with inventory_purchases support
+    const { data: product, error: fetchError } = await supabase
       .from('products')
-      .select('stock')
+      .select('stock, cost')
       .eq('id', id)
       .single();
     
+    if (fetchError) throw new Error(`Failed to fetch product: ${fetchError.message}`);
     if (!product) throw new Error('Product not found');
     
+    // Update product stock
     const { error: updateError } = await supabase
       .from('products')
-      .update({ stock: product.stock + additionalStock })
+      .update({ 
+        stock: product.stock + additionalStock,
+        updated_at: new Date().toISOString()
+      })
       .eq('id', id);
     
-    if (updateError) throw updateError;
+    if (updateError) throw new Error(`Failed to update stock: ${updateError.message}`);
+    
+    // Create inventory purchase record for FIFO/LIFO
+    const { error: purchaseError } = await supabase
+      .from('inventory_purchases')
+      .insert({
+        product_id: id,
+        quantity: additionalStock,
+        unit_cost: product.cost,
+        remaining_quantity: additionalStock,
+        purchased_at: new Date().toISOString(),
+        purchased_by: user?.id || null,
+        notes: 'Stock added via inventory management'
+      });
+    
+    if (purchaseError) {
+      console.error('Failed to create inventory purchase record:', purchaseError.message);
+      // Don't throw - stock was updated successfully, just log the issue
+      console.warn('Stock updated but inventory purchase record not created. This may affect FIFO/LIFO calculations.');
+    }
+    
+    console.log('Manual stock update successful');
+  } else {
+    console.log('Stock updated successfully via RPC');
   }
 };
 

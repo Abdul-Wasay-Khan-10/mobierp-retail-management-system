@@ -368,12 +368,24 @@ $$ LANGUAGE plpgsql;
 -- Function: Add product stock safely
 CREATE OR REPLACE FUNCTION add_product_stock(
   p_product_id UUID,
-  p_additional_stock INTEGER
+  p_additional_stock INTEGER,
+  p_user_id UUID DEFAULT NULL
 )
 RETURNS VOID AS $$
+DECLARE
+  v_product RECORD;
 BEGIN
-  IF p_additional_stock < 0 THEN
-    RAISE EXCEPTION 'Cannot add negative stock';
+  IF p_additional_stock <= 0 THEN
+    RAISE EXCEPTION 'Cannot add zero or negative stock';
+  END IF;
+  
+  -- Get product details
+  SELECT id, cost, stock INTO v_product
+  FROM products
+  WHERE id = p_product_id AND is_active = true;
+  
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Product not found or inactive: %', p_product_id;
   END IF;
   
   UPDATE products 
@@ -381,11 +393,35 @@ BEGIN
       updated_at = NOW()
   WHERE id = p_product_id;
   
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'Product not found: %', p_product_id;
+  -- Create inventory purchase record if inventory_purchases table exists
+  -- This supports FIFO/LIFO inventory tracking if enabled
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables 
+    WHERE table_schema = 'public' 
+    AND table_name = 'inventory_purchases'
+  ) THEN
+    INSERT INTO inventory_purchases (
+      product_id,
+      quantity,
+      unit_cost,
+      remaining_quantity,
+      purchased_at,
+      purchased_by,
+      notes
+    ) VALUES (
+      p_product_id,
+      p_additional_stock,
+      v_product.cost,
+      p_additional_stock,
+      NOW(),
+      p_user_id,
+      'Stock added via inventory management'
+    );
   END IF;
 END;
 $$ LANGUAGE plpgsql;
+
+COMMENT ON FUNCTION add_product_stock IS 'Adds stock to product with optional FIFO/LIFO tracking';
 
 -- Function: Get low stock products
 CREATE OR REPLACE FUNCTION get_low_stock_products(threshold INTEGER DEFAULT 5)
@@ -496,6 +532,22 @@ BEGIN
   ORDER BY total_value DESC NULLS LAST;
 END;
 $$ LANGUAGE plpgsql;
+
+-- ============================================================
+-- SECTION 7B: GRANT FUNCTION EXECUTION PERMISSIONS
+-- ============================================================
+
+-- Grant execute permissions on all functions to authenticated and anon roles
+-- This is critical for RPC calls from the application to work
+GRANT EXECUTE ON FUNCTION update_updated_at_column() TO authenticated, anon;
+GRANT EXECUTE ON FUNCTION generate_sku(VARCHAR, VARCHAR) TO authenticated, anon;
+GRANT EXECUTE ON FUNCTION check_and_reduce_stock() TO authenticated, anon;
+GRANT EXECUTE ON FUNCTION process_sale_with_fifo(UUID, INTEGER, NUMERIC) TO authenticated, anon;
+GRANT EXECUTE ON FUNCTION add_product_stock(UUID, INTEGER) TO authenticated, anon;
+GRANT EXECUTE ON FUNCTION add_product_stock(UUID, INTEGER, UUID) TO authenticated, anon;
+GRANT EXECUTE ON FUNCTION get_low_stock_products(INTEGER) TO authenticated, anon;
+GRANT EXECUTE ON FUNCTION calculate_profit(TIMESTAMPTZ, TIMESTAMPTZ) TO authenticated, anon;
+GRANT EXECUTE ON FUNCTION get_inventory_value_by_category() TO authenticated, anon;
 
 -- ============================================================
 -- SECTION 8: CREATE TRIGGERS

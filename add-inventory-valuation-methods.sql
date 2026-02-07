@@ -251,12 +251,14 @@ BEGIN
       product_id,
       quantity,
       unit_cost,
+      remaining_quantity,
       purchased_at,
       notes
     ) VALUES (
       NEW.id,
       NEW.stock,
       NEW.cost,
+      NEW.stock,
       NEW.created_at,
       'Initial inventory - product created'
     );
@@ -290,12 +292,14 @@ BEGIN
       product_id,
       quantity,
       unit_cost,
+      remaining_quantity,
       purchased_at,
       notes
     ) VALUES (
       NEW.id,
       v_quantity_added,
       NEW.cost,
+      v_quantity_added,
       NOW(),
       'Stock added via inventory update'
     );

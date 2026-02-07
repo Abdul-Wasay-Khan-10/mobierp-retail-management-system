@@ -111,6 +111,7 @@ const Inventory: React.FC = () => {
   };
 
   const handleOpenAddStock = (product: Product) => {
+    console.log('Opening add stock modal for:', product.sku, product.model);
     setSelectedProductForStock(product);
     setStockToAdd(1);
     setShowAddStockModal(true);
@@ -120,14 +121,17 @@ const Inventory: React.FC = () => {
     e.preventDefault();
     if (selectedProductForStock && stockToAdd > 0) {
       try {
+        console.log('Adding stock:', stockToAdd, 'to product:', selectedProductForStock.sku);
         await db.updateProductStock(selectedProductForStock.id, stockToAdd);
         setShowAddStockModal(false);
         setSelectedProductForStock(null);
         setStockToAdd(1);
         await refreshData();
+        console.log('Stock added successfully');
       } catch (error) {
         console.error('Error adding stock:', error);
-        alert('Error adding stock');
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+        alert(`Failed to add stock: ${errorMessage}\n\nPlease check the console for details.`);
       }
     }
   };
