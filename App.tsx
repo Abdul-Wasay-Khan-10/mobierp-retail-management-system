@@ -9,30 +9,34 @@ import POS from './components/POS';
 import SalesHistory from './components/SalesHistory';
 import Finance from './components/Finance';
 import Settings from './components/Settings';
+import { UiLockOverlay, UiLockProvider, useUiLock } from './components/UiLock';
 
-const App: React.FC = () => {
+const AppContent: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
   const [showPassword, setShowPassword] = useState(false);
+  const { runWithLock } = useUiLock();
 
   useEffect(() => {
     const checkUser = async () => {
       const currentUser = db.getCurrentUser();
       if (currentUser) {
-        // Verify user still exists in database
-        const isValid = await db.verifyCurrentUser();
-        if (isValid) {
-          setUser(currentUser);
-        } else {
-          setLoginError('Session expired. Please log in again.');
-        }
+        await runWithLock(async () => {
+          // Verify user still exists in database
+          const isValid = await db.verifyCurrentUser();
+          if (isValid) {
+            setUser(currentUser);
+          } else {
+            setLoginError('Session expired. Please log in again.');
+          }
+        });
       }
     };
     checkUser();
-  }, []);
+  }, [runWithLock]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,13 +44,15 @@ const App: React.FC = () => {
     setIsLoggingIn(true);
     
     try {
-      const loggedInUser = await db.login(loginForm.username, loginForm.password);
-      if (loggedInUser) {
-        db.setCurrentUser(loggedInUser);
-        setUser(loggedInUser);
-      } else {
-        setLoginError('Invalid username or password');
-      }
+      await runWithLock(async () => {
+        const loggedInUser = await db.login(loginForm.username, loginForm.password);
+        if (loggedInUser) {
+          db.setCurrentUser(loggedInUser);
+          setUser(loggedInUser);
+        } else {
+          setLoginError('Invalid username or password');
+        }
+      });
     } catch (err: any) {
       setLoginError(err.message || 'Login failed');
     } finally {
@@ -136,9 +142,25 @@ const App: React.FC = () => {
       {activeTab === 'sales' && <SalesHistory />}
       {activeTab === 'finance' && <Finance />}
       {activeTab === 'settings' && user.role === UserRole.OWNER && (
-        <Settings onLogout={handleLogout} currentUser={user} />
+        <Settings
+          onLogout={handleLogout}
+          currentUser={user}
+          onUserUpdated={(updatedUser) => {
+            db.setCurrentUser(updatedUser);
+            setUser(updatedUser);
+          }}
+        />
       )}
     </Layout>
+  );
+};
+
+const App: React.FC = () => {
+  return (
+    <UiLockProvider>
+      <UiLockOverlay />
+      <AppContent />
+    </UiLockProvider>
   );
 };
 

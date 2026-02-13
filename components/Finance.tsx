@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Product, Sale } from '../types';
 import { db } from '../services/supabase-db';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
+import { useUiLock } from './UiLock';
 
 interface FinancialMetrics {
   capitalInvested: number;
@@ -22,6 +23,7 @@ const Finance: React.FC = () => {
   const [sales, setSales] = useState<Sale[]>([]);
   const [categoryBreakdown, setCategoryBreakdown] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const { runWithLock } = useUiLock();
 
   useEffect(() => {
     // Set default date range (last 30 days)
@@ -40,78 +42,80 @@ const Finance: React.FC = () => {
   }, [startDate, endDate]);
 
   const calculateMetrics = async () => {
-    try {
-      setLoading(true);
-      const [allProducts, allSales, categories] = await Promise.all([
-        db.getProducts(),
-        db.getSales(),
-        db.getCategories()
-      ]);
+    await runWithLock(async () => {
+      try {
+        setLoading(true);
+        const [allProducts, allSales, categories] = await Promise.all([
+          db.getProducts(),
+          db.getSales(),
+          db.getCategories()
+        ]);
 
-      setProducts(allProducts);
-      setSales(allSales);
+        setProducts(allProducts);
+        setSales(allSales);
 
-      // Filter sales by date range
-      const filteredSales = allSales.filter(sale => {
-        const saleDate = new Date(sale.date);
-        const start = new Date(startDate);
-        const end = new Date(endDate);
-        end.setHours(23, 59, 59, 999);
-        return saleDate >= start && saleDate <= end;
-      });
+        // Filter sales by date range
+        const filteredSales = allSales.filter(sale => {
+          const saleDate = new Date(sale.date);
+          const start = new Date(startDate);
+          const end = new Date(endDate);
+          end.setHours(23, 59, 59, 999);
+          return saleDate >= start && saleDate <= end;
+        });
 
-      // Calculate revenue
-      const revenue = filteredSales.reduce((acc, s) => acc + s.total, 0);
-      const transactionCount = filteredSales.length;
-    const avgTransactionValue = transactionCount > 0 ? revenue / transactionCount : 0;
+        // Calculate revenue
+        const revenue = filteredSales.reduce((acc, s) => acc + s.total, 0);
+        const transactionCount = filteredSales.length;
+        const avgTransactionValue = transactionCount > 0 ? revenue / transactionCount : 0;
 
-    // Calculate cost of goods sold
-    let costOfGoodsSold = 0;
-    const categorySales: { [key: string]: { revenue: number; cost: number } } = {};
+        // Calculate cost of goods sold
+        let costOfGoodsSold = 0;
+        const categorySales: { [key: string]: { revenue: number; cost: number } } = {};
 
-    filteredSales.forEach(sale => {
-      sale.items.forEach(item => {
-        // Cost is already stored in sale items from Supabase
-        costOfGoodsSold += item.cost * item.quantity;
+        filteredSales.forEach(sale => {
+          sale.items.forEach(item => {
+            // Cost is already stored in sale items from Supabase
+            costOfGoodsSold += item.cost * item.quantity;
 
-        // Track by category
-        const catName = item.categoryName || 'Unknown';
-        if (!categorySales[catName]) {
-          categorySales[catName] = { revenue: 0, cost: 0 };
-        }
-        categorySales[catName].revenue += item.subtotal;
-        categorySales[catName].cost += item.cost * item.quantity;
-      });
+            // Track by category
+            const catName = item.categoryName || 'Unknown';
+            if (!categorySales[catName]) {
+              categorySales[catName] = { revenue: 0, cost: 0 };
+            }
+            categorySales[catName].revenue += item.subtotal;
+            categorySales[catName].cost += item.cost * item.quantity;
+          });
+        });
+
+        // Current capital invested in inventory
+        const capitalInvested = allProducts.reduce((acc, p) => acc + p.stock * p.cost, 0);
+        const grossProfit = revenue - costOfGoodsSold;
+        const profitMargin = revenue > 0 ? (grossProfit / revenue) * 100 : 0;
+
+        setMetrics({
+          capitalInvested,
+          revenue,
+          costOfGoodsSold,
+          grossProfit,
+          profitMargin,
+          transactionCount,
+          avgTransactionValue
+        });
+
+        // Prepare category breakdown
+        const breakdown = Object.entries(categorySales).map(([catName, data]) => ({
+          name: catName,
+          revenue: data.revenue,
+          profit: data.revenue - data.cost
+        })).sort((a, b) => b.revenue - a.revenue);
+
+        setCategoryBreakdown(breakdown);
+      } catch (error) {
+        console.error('Error calculating metrics:', error);
+      } finally {
+        setLoading(false);
+      }
     });
-
-    // Current capital invested in inventory
-    const capitalInvested = allProducts.reduce((acc, p) => acc + p.stock * p.cost, 0);
-    const grossProfit = revenue - costOfGoodsSold;
-    const profitMargin = revenue > 0 ? (grossProfit / revenue) * 100 : 0;
-
-    setMetrics({
-      capitalInvested,
-      revenue,
-      costOfGoodsSold,
-      grossProfit,
-      profitMargin,
-      transactionCount,
-      avgTransactionValue
-    });
-
-    // Prepare category breakdown
-    const breakdown = Object.entries(categorySales).map(([catName, data]) => ({
-      name: catName,
-      revenue: data.revenue,
-      profit: data.revenue - data.cost
-    })).sort((a, b) => b.revenue - a.revenue);
-
-    setCategoryBreakdown(breakdown);
-    } catch (error) {
-      console.error('Error calculating metrics:', error);
-    } finally {
-      setLoading(false);
-    }
   };
 
   if (loading) {

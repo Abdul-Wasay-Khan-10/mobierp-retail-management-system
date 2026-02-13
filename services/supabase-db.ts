@@ -285,13 +285,15 @@ export const recordSale = async (sale: {
     year: 'numeric'
   }).replace(/\//g, '');
   
-  const { data: lastSale } = await supabase
+  const { data: lastSale, error: lastSaleError } = await supabase
     .from('sales')
     .select('sale_number')
     .ilike('sale_number', `SALE-${dateKey}-%`)
     .order('created_at', { ascending: false })
     .limit(1)
-    .single();
+    .maybeSingle();
+
+  if (lastSaleError) throw lastSaleError;
   
   let counter = 1;
   if (lastSale) {
@@ -390,7 +392,7 @@ export const login = async (username: string, password: string): Promise<User | 
     .select('*')
     .eq('username', username)
     .eq('is_active', true)
-    .single();
+    .maybeSingle();
   
   if (error || !data) return null;
   
@@ -423,7 +425,7 @@ export const verifyCurrentUser = async (): Promise<boolean> => {
     .select('id')
     .eq('id', currentUser.id)
     .eq('is_active', true)
-    .single();
+    .maybeSingle();
   
   if (error || !data) {
     // User no longer exists, clear localStorage
@@ -469,11 +471,13 @@ export const addUser = async (user: {
   role: UserRole;
 }): Promise<User> => {
   // Check if username already exists
-  const { data: existing } = await supabase
+  const { data: existing, error: existingError } = await supabase
     .from('users')
     .select('id')
     .eq('username', user.username)
-    .single();
+    .maybeSingle();
+
+  if (existingError) throw existingError;
   
   if (existing) {
     throw new Error('Username already exists');
@@ -510,6 +514,54 @@ export const deleteUser = async (id: string): Promise<void> => {
     .eq('id', id);
   
   if (error) throw error;
+};
+
+export const updateUser = async (user: {
+  id: string;
+  username: string;
+  password?: string;
+  name: string;
+  role: UserRole;
+}): Promise<User> => {
+  const { data: existing, error: existingError } = await supabase
+    .from('users')
+    .select('id')
+    .eq('username', user.username)
+    .neq('id', user.id)
+    .maybeSingle();
+
+  if (existingError) throw existingError;
+
+  if (existing) {
+    throw new Error('Username already exists');
+  }
+
+  const updatePayload: any = {
+    username: user.username,
+    name: user.name,
+    role: user.role,
+    updated_at: new Date().toISOString()
+  };
+
+  if (user.password && user.password.trim().length > 0) {
+    updatePayload.password_hash = user.password;
+  }
+
+  const { data, error } = await supabase
+    .from('users')
+    .update(updatePayload)
+    .eq('id', user.id)
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  return {
+    id: data.id,
+    username: data.username,
+    name: data.name,
+    role: data.role as UserRole
+  };
 };
 
 // =====================================================
@@ -568,6 +620,7 @@ export const db = {
   getUsers,
   addUser,
   deleteUser,
+  updateUser,
   
   // Settings
   getInventoryDisplayOrder,

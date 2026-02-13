@@ -2,20 +2,32 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../services/supabase-db';
 import { UserRole } from '../types';
+import { useUiLock } from './UiLock';
 
 interface SettingsProps {
   onLogout: () => void;
   currentUser: any;
+  onUserUpdated: (user: any) => void;
 }
 
-const Settings: React.FC<SettingsProps> = ({ onLogout, currentUser }) => {
+const Settings: React.FC<SettingsProps> = ({ onLogout, currentUser, onUserUpdated }) => {
   const [users, setUsers] = useState<any[]>([]);
   const [showAddUser, setShowAddUser] = useState(false);
+  const [showEditUser, setShowEditUser] = useState(false);
+  const [editingUser, setEditingUser] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [displayOrder, setDisplayOrder] = useState<'FIFO' | 'LIFO'>('LIFO');
   const [savingOrder, setSavingOrder] = useState(false);
+  const { runWithLock } = useUiLock();
   const [newUser, setNewUser] = useState({
+    username: '',
+    password: '',
+    name: '',
+    role: UserRole.STAFF
+  });
+  const [editUser, setEditUser] = useState({
+    id: '',
     username: '',
     password: '',
     name: '',
@@ -24,50 +36,88 @@ const Settings: React.FC<SettingsProps> = ({ onLogout, currentUser }) => {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [runWithLock]);
 
   const loadData = async () => {
-    try {
-      const [usersData, order] = await Promise.all([
-        db.getUsers(),
-        db.getInventoryDisplayOrder()
-      ]);
-      setUsers(usersData);
-      setDisplayOrder(order);
-    } catch (error) {
-      console.error('Error loading data:', error);
-      alert('Failed to load settings: ' + (error as Error).message);
-    } finally {
-      setLoading(false);
-    }
+    await runWithLock(async () => {
+      try {
+        const [usersData, order] = await Promise.all([
+          db.getUsers(),
+          db.getInventoryDisplayOrder()
+        ]);
+        setUsers(usersData);
+        setDisplayOrder(order);
+      } catch (error) {
+        console.error('Error loading data:', error);
+        alert('Failed to load settings: ' + (error as Error).message);
+      } finally {
+        setLoading(false);
+      }
+    });
   };
 
   const loadUsers = async () => {
-    try {
-      const usersData = await db.getUsers();
-      setUsers(usersData);
-    } catch (error) {
-      console.error('Error loading users:', error);
-      alert('Failed to load users: ' + (error as Error).message);
-    }
+    await runWithLock(async () => {
+      try {
+        const usersData = await db.getUsers();
+        setUsers(usersData);
+      } catch (error) {
+        console.error('Error loading users:', error);
+        alert('Failed to load users: ' + (error as Error).message);
+      }
+    });
   };
 
   const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await db.addUser(newUser);
-      await loadUsers();
-      setShowAddUser(false);
-      setNewUser({
-        username: '',
-        password: '',
-        name: '',
-        role: UserRole.STAFF
+      await runWithLock(async () => {
+        await db.addUser(newUser);
+        await loadUsers();
+        setShowAddUser(false);
+        setNewUser({
+          username: '',
+          password: '',
+          name: '',
+          role: UserRole.STAFF
+        });
+        alert('User added successfully!');
       });
-      alert('User added successfully!');
     } catch (error) {
       console.error('Error adding user:', error);
       alert('Failed to add user: ' + (error as Error).message);
+    }
+  };
+
+  const openEditUser = (user: any) => {
+    setEditingUser(user);
+    setEditUser({
+      id: user.id,
+      username: user.username,
+      password: '',
+      name: user.name,
+      role: user.role
+    });
+    setShowEditUser(true);
+  };
+
+  const handleEditUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await runWithLock(async () => {
+        const updated = await db.updateUser(editUser);
+        await loadUsers();
+        if (updated.id === currentUser.id) {
+          onUserUpdated(updated);
+        }
+        setShowEditUser(false);
+        setEditingUser(null);
+        setEditUser({ id: '', username: '', password: '', name: '', role: UserRole.STAFF });
+        alert('User updated successfully!');
+      });
+    } catch (error) {
+      console.error('Error updating user:', error);
+      alert('Failed to update user: ' + (error as Error).message);
     }
   };
 
@@ -80,9 +130,11 @@ const Settings: React.FC<SettingsProps> = ({ onLogout, currentUser }) => {
       return;
     }
     try {
-      await db.deleteUser(id);
-      await loadUsers();
-      alert('User deleted successfully!');
+      await runWithLock(async () => {
+        await db.deleteUser(id);
+        await loadUsers();
+        alert('User deleted successfully!');
+      });
     } catch (error) {
       console.error('Error deleting user:', error);
       alert('Failed to delete user: ' + (error as Error).message);
@@ -91,10 +143,12 @@ const Settings: React.FC<SettingsProps> = ({ onLogout, currentUser }) => {
 
   const handleDisplayOrderChange = async (order: 'FIFO' | 'LIFO') => {
     try {
-      setSavingOrder(true);
-      await db.setInventoryDisplayOrder(order);
-      setDisplayOrder(order);
-      alert(`Inventory display order updated to ${order}! Products will now be sorted ${order === 'FIFO' ? 'oldest first' : 'newest first'}.`);
+      await runWithLock(async () => {
+        setSavingOrder(true);
+        await db.setInventoryDisplayOrder(order);
+        setDisplayOrder(order);
+        alert(`Inventory display order updated to ${order}! Products will now be sorted ${order === 'FIFO' ? 'oldest first' : 'newest first'}.`);
+      });
     } catch (error) {
       console.error('Error updating display order:', error);
       alert('Failed to update display order: ' + (error as Error).message);
@@ -224,12 +278,20 @@ const Settings: React.FC<SettingsProps> = ({ onLogout, currentUser }) => {
                         </span>
                       </td>
                       <td className="px-6 py-4 text-center">
-                        <button 
-                          onClick={() => handleDeleteUser(u.id)}
-                          className={`w-8 h-8 rounded-lg flex items-center justify-center mx-auto transition-colors ${u.id === currentUser.id ? 'opacity-10 cursor-not-allowed' : 'text-slate-300 hover:text-red-500 hover:bg-red-50'}`}
-                        >
-                          <i className="fas fa-trash-can text-sm"></i>
-                        </button>
+                        <div className="flex items-center justify-center space-x-2">
+                          <button 
+                            onClick={() => openEditUser(u)}
+                            className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+                          >
+                            <i className="fas fa-pen text-sm"></i>
+                          </button>
+                          <button 
+                            onClick={() => handleDeleteUser(u.id)}
+                            className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${u.id === currentUser.id ? 'opacity-10 cursor-not-allowed' : 'text-slate-300 hover:text-red-500 hover:bg-red-50'}`}
+                          >
+                            <i className="fas fa-trash-can text-sm"></i>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -318,6 +380,63 @@ const Settings: React.FC<SettingsProps> = ({ onLogout, currentUser }) => {
               <div className="pt-4 flex gap-3 pb-4 sm:pb-0">
                 <button type="button" onClick={() => setShowAddUser(false)} className="flex-1 px-4 py-4 text-slate-500 font-bold hover:bg-slate-50 rounded-2xl transition-colors text-sm">Discard</button>
                 <button type="submit" className="flex-1 px-4 py-4 bg-indigo-600 text-white rounded-2xl font-black text-sm hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-100 active:scale-[0.98]">Confirm Account</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit User Modal */}
+      {showEditUser && editingUser && (
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/40 backdrop-blur-md">
+          <div className="bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl w-full max-w-md animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-6 duration-300 overflow-hidden">
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-white sticky top-0 z-10">
+              <h3 className="text-xl font-bold text-slate-900 tracking-tight">Edit Account</h3>
+              <button onClick={() => setShowEditUser(false)} className="w-10 h-10 flex items-center justify-center bg-slate-50 rounded-full text-slate-400 hover:text-slate-600 active:scale-90 transition-all">
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
+            <form onSubmit={handleEditUser} className="p-6 space-y-5">
+              <div className="space-y-5">
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-widest">Employee Name</label>
+                  <input required type="text" className="w-full px-4 py-3.5 bg-slate-50 border-none rounded-2xl outline-none ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-500 transition-all font-bold" value={editUser.name} onChange={e => setEditUser({ ...editUser, name: e.target.value })} />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-widest">Login Username</label>
+                  <input required type="text" className="w-full px-4 py-3.5 bg-slate-50 border-none rounded-2xl outline-none ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-500 transition-all" value={editUser.username} onChange={e => setEditUser({ ...editUser, username: e.target.value })} />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-widest">New Password (optional)</label>
+                  <div className="relative">
+                    <input 
+                      type={showPassword ? "text" : "password"}
+                      className="w-full px-4 py-3.5 pr-12 bg-slate-50 border-none rounded-2xl outline-none ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-500 transition-all font-mono" 
+                      placeholder="Leave blank to keep current"
+                      value={editUser.password}
+                      onChange={e => setEditUser({ ...editUser, password: e.target.value })}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors rounded-lg hover:bg-slate-100"
+                      tabIndex={-1}
+                    >
+                      <i className={`fas ${showPassword ? 'fa-eye-slash' : 'fa-eye'} text-sm`}></i>
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-widest">Access Protocol</label>
+                  <select className="w-full px-4 py-3.5 bg-slate-50 border-none rounded-2xl outline-none ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-500 transition-all font-bold" value={editUser.role} onChange={e => setEditUser({ ...editUser, role: e.target.value as UserRole })}>
+                    <option value={UserRole.STAFF}>Retail Staff (Limited)</option>
+                    <option value={UserRole.OWNER}>System Owner (Full)</option>
+                  </select>
+                </div>
+              </div>
+              <div className="pt-4 flex gap-3 pb-4 sm:pb-0">
+                <button type="button" onClick={() => setShowEditUser(false)} className="flex-1 px-4 py-4 text-slate-500 font-bold hover:bg-slate-50 rounded-2xl transition-colors text-sm">Cancel</button>
+                <button type="submit" className="flex-1 px-4 py-4 bg-indigo-600 text-white rounded-2xl font-black text-sm hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-100 active:scale-[0.98]">Save Changes</button>
               </div>
             </form>
           </div>

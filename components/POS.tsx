@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Product } from '../types';
 import { db } from '../services/supabase-db';
+import { useUiLock } from './UiLock';
 
 interface CartItem {
   productId: string;
@@ -20,20 +21,24 @@ const POS: React.FC = () => {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [sellingPrice, setSellingPrice] = useState(0);
   const [loading, setLoading] = useState(true);
+  const { runWithLock } = useUiLock();
 
   useEffect(() => {
     loadProducts();
-  }, []);
+  }, [runWithLock]);
 
   const loadProducts = async () => {
-    try {
-      const prods = await db.getProducts();
-      setProducts(prods);
-    } catch (error) {
-      console.error('Error loading products:', error);
-    } finally {
-      setLoading(false);
-    }
+    await runWithLock(async () => {
+      try {
+        setLoading(true);
+        const prods = await db.getProducts();
+        setProducts(prods);
+      } catch (error) {
+        console.error('Error loading products:', error);
+      } finally {
+        setLoading(false);
+      }
+    });
   };
 
   const filtered = products.filter(p => {
@@ -124,30 +129,32 @@ const POS: React.FC = () => {
     if (cart.length === 0) return;
     
     try {
-      const currentUser = db.getCurrentUser();
-      if (!currentUser) {
-        setMessage({ type: 'error', text: 'User not logged in' });
-        return;
-      }
+      await runWithLock(async () => {
+        const currentUser = db.getCurrentUser();
+        if (!currentUser) {
+          setMessage({ type: 'error', text: 'User not logged in' });
+          return;
+        }
 
-      await db.recordSale({
-        items: cart.map(item => {
-          const product = products.find(p => p.id === item.productId);
-          return {
-            productId: item.productId,
-            quantity: item.quantity,
-            price: item.unitPrice,
-            cost: product?.cost || 0
-          };
-        }),
-        sellerId: currentUser.id
+        await db.recordSale({
+          items: cart.map(item => {
+            const product = products.find(p => p.id === item.productId);
+            return {
+              productId: item.productId,
+              quantity: item.quantity,
+              price: item.unitPrice,
+              cost: product?.cost || 0
+            };
+          }),
+          sellerId: currentUser.id
+        });
+
+        setCart([]);
+        await loadProducts();
+        setMessage({ type: 'success', text: 'Order processed!' });
+        setTimeout(() => setMessage(null), 3000);
+        if (showCartOnMobile) setShowCartOnMobile(false);
       });
-
-      setCart([]);
-      await loadProducts();
-      setMessage({ type: 'success', text: 'Order processed!' });
-      setTimeout(() => setMessage(null), 3000);
-      if (showCartOnMobile) setShowCartOnMobile(false);
     } catch (err: any) {
       console.error('Checkout error:', err);
       setMessage({ type: 'error', text: err.message || 'Error processing sale' });

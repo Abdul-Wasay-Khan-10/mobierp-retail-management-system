@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Product, Category } from '../types';
 import { db } from '../services/supabase-db';
+import { useUiLock } from './UiLock';
 
 const Inventory: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
@@ -15,6 +16,7 @@ const Inventory: React.FC = () => {
   const [selectedProductForStock, setSelectedProductForStock] = useState<Product | null>(null);
   const [stockToAdd, setStockToAdd] = useState(1);
   const [loading, setLoading] = useState(true);
+  const { runWithLock } = useUiLock();
   
   const [newProduct, setNewProduct] = useState({
     brand: '',
@@ -27,25 +29,27 @@ const Inventory: React.FC = () => {
 
   useEffect(() => {
     refreshData();
-  }, []);
+  }, [runWithLock]);
 
   const refreshData = async () => {
-    try {
-      setLoading(true);
-      const prods = await db.getProducts();
-      const cats = await db.getCategories();
-      setProducts(prods); // Already sorted newest first from Supabase
-      setCategories(cats);
-      
-      if (cats.length > 0 && !newProduct.categoryId) {
-        setNewProduct(prev => ({ ...prev, categoryId: cats[0].id }));
+    await runWithLock(async () => {
+      try {
+        setLoading(true);
+        const prods = await db.getProducts();
+        const cats = await db.getCategories();
+        setProducts(prods); // Already sorted newest first from Supabase
+        setCategories(cats);
+        
+        if (cats.length > 0 && !newProduct.categoryId) {
+          setNewProduct(prev => ({ ...prev, categoryId: cats[0].id }));
+        }
+      } catch (error) {
+        console.error('Error loading inventory:', error);
+        alert('Error loading data from database');
+      } finally {
+        setLoading(false);
       }
-    } catch (error) {
-      console.error('Error loading inventory:', error);
-      alert('Error loading data from database');
-    } finally {
-      setLoading(false);
-    }
+    });
   };
 
   const filteredProducts = products.filter(p => {
@@ -58,24 +62,30 @@ const Inventory: React.FC = () => {
 
   const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (categories.length === 0) {
+      alert('Please add a category first.');
+      return;
+    }
     try {
-      await db.addProduct({
-        categoryId: newProduct.categoryId,
-        brand: newProduct.brand,
-        model: newProduct.model,
-        cost: Number(newProduct.cost),
-        stock: Number(newProduct.stock)
+      await runWithLock(async () => {
+        await db.addProduct({
+          categoryId: newProduct.categoryId,
+          brand: newProduct.brand,
+          model: newProduct.model,
+          cost: Number(newProduct.cost),
+          stock: Number(newProduct.stock)
+        });
+        setShowAddModal(false);
+        setNewProduct({
+          brand: '',
+          model: '',
+          categoryId: categories[0]?.id || '',
+          cost: '',
+          stock: '',
+          sku: ''
+        });
+        await refreshData();
       });
-      setShowAddModal(false);
-      setNewProduct({
-        brand: '',
-        model: '',
-        categoryId: categories[0]?.id || '',
-        cost: '',
-        stock: '',
-        sku: ''
-      });
-      await refreshData();
     } catch (error) {
       console.error('Error adding product:', error);
       alert('Error adding product');
@@ -85,8 +95,10 @@ const Inventory: React.FC = () => {
   const handleDelete = async (id: string, name: string) => {
     if (confirm(`Delete ${name}? This action cannot be undone.`)) {
       try {
-        await db.deleteProduct(id);
-        await refreshData();
+        await runWithLock(async () => {
+          await db.deleteProduct(id);
+          await refreshData();
+        });
       } catch (error) {
         console.error('Error deleting product:', error);
         alert('Error deleting product');
@@ -98,11 +110,13 @@ const Inventory: React.FC = () => {
     e.preventDefault();
     if (newCategoryName.trim()) {
       try {
-        const newCategory = await db.addCategory(newCategoryName.trim());
-        setShowAddCategoryModal(false);
-        setNewCategoryName('');
-        await refreshData();
-        setNewProduct(prev => ({ ...prev, categoryId: newCategory.id }));
+        await runWithLock(async () => {
+          const newCategory = await db.addCategory(newCategoryName.trim());
+          setShowAddCategoryModal(false);
+          setNewCategoryName('');
+          await refreshData();
+          setNewProduct(prev => ({ ...prev, categoryId: newCategory.id }));
+        });
       } catch (error) {
         console.error('Error adding category:', error);
         alert('Error adding category');
@@ -117,17 +131,30 @@ const Inventory: React.FC = () => {
     setShowAddStockModal(true);
   };
 
+  const openAddProductModal = () => {
+    if (categories.length === 0) {
+      alert('Please add a category first.');
+      return;
+    }
+    if (!newProduct.categoryId) {
+      setNewProduct(prev => ({ ...prev, categoryId: categories[0].id }));
+    }
+    setShowAddModal(true);
+  };
+
   const handleAddStock = async (e: React.FormEvent) => {
     e.preventDefault();
     if (selectedProductForStock && stockToAdd > 0) {
       try {
         console.log('Adding stock:', stockToAdd, 'to product:', selectedProductForStock.sku);
-        await db.updateProductStock(selectedProductForStock.id, stockToAdd);
-        setShowAddStockModal(false);
-        setSelectedProductForStock(null);
-        setStockToAdd(1);
-        await refreshData();
-        console.log('Stock added successfully');
+        await runWithLock(async () => {
+          await db.updateProductStock(selectedProductForStock.id, stockToAdd);
+          setShowAddStockModal(false);
+          setSelectedProductForStock(null);
+          setStockToAdd(1);
+          await refreshData();
+          console.log('Stock added successfully');
+        });
       } catch (error) {
         console.error('Error adding stock:', error);
         const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
@@ -163,7 +190,7 @@ const Inventory: React.FC = () => {
             Add Category
           </button>
           <button 
-            onClick={() => setShowAddModal(true)}
+            onClick={openAddProductModal}
             className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-3 rounded-xl font-bold flex items-center transition-all shadow-lg shadow-indigo-100 justify-center active:scale-95"
           >
             <i className="fas fa-plus mr-2 text-sm"></i>
@@ -322,6 +349,9 @@ const Inventory: React.FC = () => {
                     value={newProduct.categoryId}
                     onChange={e => setNewProduct({...newProduct, categoryId: e.target.value})}
                   >
+                    {categories.length === 0 && (
+                      <option value="" disabled>No categories available</option>
+                    )}
                     {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
                 </div>

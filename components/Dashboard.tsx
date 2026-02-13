@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Product, Sale, DashboardStats } from '../types';
 import { db } from '../services/supabase-db';
+import { useUiLock } from './UiLock';
 
 interface DashboardProps {
   onNavigate: (tab: string) => void;
@@ -12,6 +13,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [salesData, setSalesData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const { runWithLock } = useUiLock();
 
   useEffect(() => {
     const loadData = async () => {
@@ -82,8 +84,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
       }
     };
 
-    loadData();
-  }, []);
+    runWithLock(loadData);
+  }, [runWithLock]);
 
   if (loading) {
     return (

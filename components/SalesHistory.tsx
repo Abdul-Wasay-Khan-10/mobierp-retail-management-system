@@ -2,11 +2,13 @@
 import React, { useState, useEffect } from 'react';
 import { Sale, Product } from '../types';
 import { db } from '../services/supabase-db';
+import { useUiLock } from './UiLock';
 
 const SalesHistory: React.FC = () => {
   const [sales, setSales] = useState<Sale[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const { runWithLock } = useUiLock();
 
   useEffect(() => {
     const loadData = async () => {
@@ -23,8 +25,8 @@ const SalesHistory: React.FC = () => {
         setLoading(false);
       }
     };
-    loadData();
-  }, []);
+    runWithLock(loadData);
+  }, [runWithLock]);
 
   if (loading) {
     return (
