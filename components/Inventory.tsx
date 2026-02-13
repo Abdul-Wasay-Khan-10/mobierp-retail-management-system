@@ -66,6 +66,9 @@ const Inventory: React.FC = () => {
       alert('Please add a category first.');
       return;
     }
+    if (!confirm(`Add product ${newProduct.brand} ${newProduct.model} with stock ${newProduct.stock}?`)) {
+      return;
+    }
     try {
       await runWithLock(async () => {
         await db.addProduct({
@@ -109,6 +112,9 @@ const Inventory: React.FC = () => {
   const handleAddCategory = async (e: React.FormEvent) => {
     e.preventDefault();
     if (newCategoryName.trim()) {
+      if (!confirm(`Add new category: ${newCategoryName.trim()}?`)) {
+        return;
+      }
       try {
         await runWithLock(async () => {
           const newCategory = await db.addCategory(newCategoryName.trim());
@@ -145,6 +151,9 @@ const Inventory: React.FC = () => {
   const handleAddStock = async (e: React.FormEvent) => {
     e.preventDefault();
     if (selectedProductForStock && stockToAdd > 0) {
+      if (!confirm(`Add ${stockToAdd} units to ${selectedProductForStock.model}?`)) {
+        return;
+      }
       try {
         console.log('Adding stock:', stockToAdd, 'to product:', selectedProductForStock.sku);
         await runWithLock(async () => {

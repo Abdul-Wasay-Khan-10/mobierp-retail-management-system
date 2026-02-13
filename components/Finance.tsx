@@ -4,6 +4,7 @@ import { Product, Sale } from '../types';
 import { db } from '../services/supabase-db';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import { useUiLock } from './UiLock';
+import { isDateInRange } from '../utils/date';
 
 interface FinancialMetrics {
   capitalInvested: number;
@@ -41,14 +42,24 @@ const Finance: React.FC = () => {
     }
   }, [startDate, endDate]);
 
+  useEffect(() => {
+    const handleSaleRecorded = () => {
+      if (startDate && endDate) {
+        calculateMetrics();
+      }
+    };
+
+    window.addEventListener('erp:sale-recorded', handleSaleRecorded);
+    return () => window.removeEventListener('erp:sale-recorded', handleSaleRecorded);
+  }, [startDate, endDate]);
+
   const calculateMetrics = async () => {
     await runWithLock(async () => {
       try {
         setLoading(true);
-        const [allProducts, allSales, categories] = await Promise.all([
+        const [allProducts, allSales] = await Promise.all([
           db.getProducts(),
-          db.getSales(),
-          db.getCategories()
+          db.getSales()
         ]);
 
         setProducts(allProducts);
@@ -56,11 +67,7 @@ const Finance: React.FC = () => {
 
         // Filter sales by date range
         const filteredSales = allSales.filter(sale => {
-          const saleDate = new Date(sale.date);
-          const start = new Date(startDate);
-          const end = new Date(endDate);
-          end.setHours(23, 59, 59, 999);
-          return saleDate >= start && saleDate <= end;
+          return isDateInRange(sale.date, startDate, endDate);
         });
 
         // Calculate revenue

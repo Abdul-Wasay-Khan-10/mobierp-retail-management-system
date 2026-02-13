@@ -127,6 +127,9 @@ const POS: React.FC = () => {
 
   const handleCheckout = async () => {
     if (cart.length === 0) return;
+    if (!confirm(`Confirm sale for Rs ${total.toFixed(0)}?`)) {
+      return;
+    }
     
     try {
       await runWithLock(async () => {
@@ -152,6 +155,7 @@ const POS: React.FC = () => {
         setCart([]);
         await loadProducts();
         setMessage({ type: 'success', text: 'Order processed!' });
+        window.dispatchEvent(new CustomEvent('erp:sale-recorded'));
         setTimeout(() => setMessage(null), 3000);
         if (showCartOnMobile) setShowCartOnMobile(false);
       });

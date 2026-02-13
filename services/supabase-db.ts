@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { Product, Sale, SaleItem, Category, User, UserRole, InventoryMethod } from '../types';
+import { buildSaleNumber } from '../utils/sales';
 
 // =====================================================
 // CATEGORIES
@@ -295,13 +296,7 @@ export const recordSale = async (sale: {
 
   if (lastSaleError) throw lastSaleError;
   
-  let counter = 1;
-  if (lastSale) {
-    const lastCounter = parseInt(lastSale.sale_number.split('-').pop() || '0');
-    counter = lastCounter + 1;
-  }
-  
-  const saleNumber = `SALE-${dateKey}-${counter.toString().padStart(4, '0')}`;
+  const saleNumber = buildSaleNumber(dateKey, lastSale?.sale_number || null);
   
   // Insert sale
   const { data: saleData, error: saleError } = await supabase
